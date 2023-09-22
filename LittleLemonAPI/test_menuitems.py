@@ -1,3 +1,4 @@
+from decimal import Decimal
 from django.contrib.auth.models import User, Group
 from rest_framework import status
 from rest_framework.test import APIClient, APITestCase
@@ -31,24 +32,24 @@ class test_MenuItems(APITestCase):
 
         self.menuitem.append(MenuItem.objects.create(
             title="Burger", 
-            price="5.00", 
+            price=5.00, 
             featured=False,
             category=Category.objects.get_or_create(slug="cat1", title="Category1")[0]))
 
         self.menuitem.append(MenuItem.objects.create(
             title="Pasta", 
-            price="20.00", 
+            price=20.00, 
             featured=True,
             category=Category.objects.get_or_create(slug="cat2", title="Category2")[0]))
         
         self.menuitem.append(MenuItem.objects.create(
             title="Bretzels", 
-            price="4.00", 
+            price=4.00, 
             featured=False,
             category=Category.objects.get_or_create(slug="cat2", title="Category2")[0]))
 
 
-    def test_menuitems_list_post(self):
+    def test_menuitems_list_get_post(self):
         '''
         Test /api/menu-items endpoint for all identified and unidentified users
         '''
@@ -108,13 +109,7 @@ class test_MenuItems(APITestCase):
         '''
 
         url = f"https://{self.domain}/api/menu-items/{self.menuitem[0].id}"
-        
-        data= {
-            'title': 'Donut', 
-            'price' : '2.0',
-            'featured': 'false', 
-            'category': str(self.menuitem[0].category_id)
-        }
+
 
         # CUSTOMER
         self.client.logout()
@@ -122,7 +117,7 @@ class test_MenuItems(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
         self.assertEqual(response.json()['title'], self.menuitem[0].title)
-        self.assertEqual(response.json()['price'], self.menuitem[0].price)
+        self.assertEqual(Decimal(response.json()['price']), self.menuitem[0].price)
         self.assertEqual(response.json()['featured'], self.menuitem[0].featured)
         self.assertEqual(response.json()['category_id'], self.menuitem[0].category_id)
 
@@ -131,7 +126,7 @@ class test_MenuItems(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
         self.assertEqual(response.json()['title'], self.menuitem[0].title)
-        self.assertEqual(response.json()['price'], self.menuitem[0].price)
+        self.assertEqual(Decimal(response.json()['price']), self.menuitem[0].price)
         self.assertEqual(response.json()['featured'], self.menuitem[0].featured)
         self.assertEqual(response.json()['category_id'], self.menuitem[0].category_id)
 
@@ -141,7 +136,7 @@ class test_MenuItems(APITestCase):
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
         self.assertEqual(response.json()['title'], self.menuitem[0].title)
-        self.assertEqual(response.json()['price'], self.menuitem[0].price)
+        self.assertEqual(Decimal(response.json()['price']), self.menuitem[0].price)
         self.assertEqual(response.json()['featured'], self.menuitem[0].featured)
         self.assertEqual(response.json()['category_id'], self.menuitem[0].category_id)
 

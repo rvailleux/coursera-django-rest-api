@@ -1,15 +1,19 @@
 import json
+from django.forms import model_to_dict
+from django.http import JsonResponse
 from django.shortcuts import get_list_or_404, get_object_or_404
-from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerPermission
 from django.contrib.auth.models import User, Group
+from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
-from rest_framework.exceptions import NotFound
-from rest_framework import status
-from LittleLemonAPI.serializers import MenuItemSerializer , UserSerializer
-from .models import MenuItem
-from rest_framework import viewsets
+from rest_framework import exceptions
 
+from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerPermission, OrderPermission
+from LittleLemonAPI.serializers import CartSerializer, MenuItemSerializer, OrderSerializer , UserSerializer
 from LittleLemonAPI import models
+
+from .models import Cart, MenuItem, Order
+
+
 
 class MenuItemsView(viewsets.ModelViewSet):
     queryset = MenuItem.objects.all()
@@ -42,13 +46,13 @@ class UsersByGroupView(viewsets.ModelViewSet):
             # Fetch the user object using the provided username
             user = User.objects.get(username=username)
         except User.DoesNotExist:
-            raise NotFound("Username not found")
+            raise exceptions.NotFound("Username not found")
         
         try:
             # Fetch the group object using the provided groupname
             group = Group.objects.get(name=groupname)
         except Group.DoesNotExist:
-            raise NotFound("Group name not found")
+            raise exceptions.NotFound("Group name not found")
         
         # Add the user to the group
         user.groups.add(group)
@@ -69,13 +73,13 @@ class UsersByGroupView(viewsets.ModelViewSet):
             # Fetch the user object using the provided username
             user = User.objects.get(id=user_id)
         except User.DoesNotExist:
-            raise NotFound("User id not found")
+            raise exceptions.NotFound("User id not found")
         
         try:
             # Fetch the group object using the provided groupname
             group = Group.objects.get(name=groupname)
         except Group.DoesNotExist:
-            raise NotFound("Group name not found")
+            raise exceptions.NotFound("Group name not found")
         
         # Remove the user from the group
         user.groups.remove(group)
@@ -86,10 +90,64 @@ class UsersByGroupView(viewsets.ModelViewSet):
         return Response({'message': f'User {user.username} removed from group {groupname}.'}, status=status.HTTP_200_OK)
 
 
-class CartManagementView(viewsets.ModelViewSet):
+class CartView(viewsets.ModelViewSet):
 
-    model = models.Cart
+    model = Cart
+    serializer_class = CartSerializer
     permission_classes= [IsCustomerPermission]
 
-    def list(self, request, *args, **kwargs):
-        return super().retrieve(request, *args, **kwargs)
+    def get_queryset(self):
+        print(f"{self.request.user}")
+        return get_list_or_404(Cart.objects.filter(user_id=self.request.user.id))
+    
+    def create(self, request):
+        
+        user = request.user
+        menuitem_id = request.data.get("menuitem")
+        quantity = request.data.get("quantity")
+
+        if quantity == None or menuitem_id == None : return Response(data={'message': "Missing parameter."},status=status.HTTP_404_NOT_FOUND)
+
+        try:
+            # Fetch the menuitem to add
+            menuitem = MenuItem.objects.get(id=menuitem_id)
+            cartitem = Cart.objects.create(
+                user=user,
+                menuitem=menuitem,
+                quantity=quantity
+            )
+
+            cartitem.save()
+
+            return JsonResponse(model_to_dict(cartitem), status=status.HTTP_201_CREATED)
+       
+        except MenuItem.DoesNotExist:
+            raise exceptions.NotFound("Menu item not found")
+        except User.DoesNotExist:
+            raise exceptions.NotFound("User not found")
+        
+    def destroy(self, request):
+        user = request.user
+        action_return = Cart.objects.filter(user=user).delete()
+        return Response(data={"message": f"{action_return[0]} cart item(s) deleted", 
+                        "nb_items" : action_return[0]}, status=status.HTTP_200_OK)
+        
+        
+class OrdersView(generics.ListCreateAPIView):
+    serializer_class = OrderSerializer
+    permission_classes = [OrderPermission]
+
+    def get_queryset(self):        
+
+        if self.request.user.groups.filter(name="manager").exists():
+            return Order.objects.all()
+        
+        elif self.request.user.groups.filter(name="delivery-crew").exists():
+            return Order.objects.filter(delivery_crew_id=self.request.user.id)
+        
+        elif self.request.user.is_authenticated:
+            return Order.objects.filter(user_id=self.request.user.id)
+        
+    def post(self):
+        current_cart = get_object_or_404(Cart.objects.get(user=self.request.user))
+        

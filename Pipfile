@@ -7,6 +7,10 @@ name = "pypi"
 djoser = "*"
 djangorestframework = "*"
 pytest = "*"
+requests = "*"
+pytest-django = "*"
+pytest-watch = "*"
+pytest-xdist = "*"
 
 [dev-packages]
 

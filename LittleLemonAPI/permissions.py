@@ -39,9 +39,24 @@ class IsCustomerPermission(permissions.BasePermission):
     def has_permission(self, request, view):
 
         #The user must be authentified trough a Token and be a customer (in no group)        
-        if not isinstance(request.auth, Token): #or len(request.user.groups) > 1:
+        if not isinstance(request.auth, Token): 
                 return False
 
         return True
     
-    
+
+class OrderPermission(permissions.BasePermission):
+    """
+    Custom permission to enable access to endpoints depending on roles.
+    """
+
+    def has_permission(self, request, view):
+        
+        if not request.user.is_authenticated:
+            return False
+        
+        else:
+            if request.method == "GET":
+                return True
+            else:
+                return False
