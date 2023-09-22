@@ -1,5 +1,8 @@
+from django.shortcuts import get_object_or_404
 from rest_framework import permissions
 from rest_framework.authtoken.models import Token
+
+from LittleLemonAPI.models import Order
 
 class IsManagerOrReadOnlyPermission(permissions.BasePermission):
     """
@@ -45,7 +48,7 @@ class IsCustomerPermission(permissions.BasePermission):
         return True
     
 
-class OrderPermission(permissions.BasePermission):
+class OrdersPermission(permissions.BasePermission):
     """
     Custom permission to enable access to endpoints depending on roles.
     """
@@ -58,7 +61,28 @@ class OrderPermission(permissions.BasePermission):
         else:
             if request.method == "GET":
                 return True
-            if request.method == "POST":
+            elif request.method == "POST":
                 return True
             else:
                 return False
+            
+
+class OrderPermission(permissions.BasePermission):
+    """
+    Custom permission to enable access to endpoints depending on roles.
+    """
+
+    def has_permission(self, request, view):
+        
+        if not request.user.is_authenticated:
+            return False
+        
+        if request.method == "GET" or request.method == "PUT" or request.method == "PATCH":
+  
+            if not any({group.name in {'delivery-crew', 'manager'} for group in request.user.groups.all()}):
+                order = get_object_or_404(Order, id=view.kwargs.get('pk'))
+                return request.user.id == order.user.id
+            else:
+                return False
+            
+        return False

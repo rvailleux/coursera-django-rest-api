@@ -59,19 +59,19 @@ class OrderItemSerializer(serializers.ModelSerializer):
 class ShortOrderItemSerializer(serializers.HyperlinkedModelSerializer):
 
     title = serializers.CharField(source='get_title')
-
+    
     class Meta:
         model = OrderItem
         fields=['url', 'title', 'quantity','price']
 
 class OrderSerializer(serializers.ModelSerializer):
-    user = UserSerializer()
-    delivery_crew = UserSerializer()
+    user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
+    delivery_crew = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
     orderitems = ShortOrderItemSerializer(many=True, source='orderitem_set')
 
     class Meta:
         model = Order
         fields = ['id', 'user', 'delivery_crew',
                   'status', 'orderitems', 'total', 'date']
-        read_only_fields = ['id', 'user', 'total']
-        optional_fields = ['delivery_crew', 'total', 'status']
+        read_only_fields = ['id', 'user', 'total', 'orderitems']
+        optional_fields = ['delivery_crew', 'total', 'status', 'orderitems']

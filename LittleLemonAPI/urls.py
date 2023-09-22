@@ -1,7 +1,7 @@
 
 from django.urls import path
 
-from LittleLemonAPI.views import CartView, MenuItemsView, UsersByGroupView, OrdersView
+from LittleLemonAPI.views import CartView, MenuItemsView, OrderView, UsersByGroupView, OrdersView
 
 urlpatterns = [
     path('menu-items', MenuItemsView.as_view({
@@ -28,7 +28,7 @@ urlpatterns = [
 
     path('orders', OrdersView.as_view()), 
 
-    path('orders/<int:pk>', OrdersView.as_view(), name='orderitem-detail')
+    path('orders/<int:pk>', OrderView.as_view(), name='orderitem-detail')
 
     
 

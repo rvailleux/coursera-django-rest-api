@@ -8,11 +8,11 @@ from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from rest_framework import exceptions
 
-from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerPermission, OrderPermission
-from LittleLemonAPI.serializers import CartSerializer, MenuItemSerializer, OrderSerializer, UserSerializer
+from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerPermission, OrderPermission, OrdersPermission
+from LittleLemonAPI.serializers import CartSerializer, MenuItemSerializer, OrderItemSerializer, OrderSerializer, UserSerializer
 from LittleLemonAPI import models
 
-from .models import Cart, MenuItem, Order
+from .models import Cart, MenuItem, Order, OrderItem
 
 
 class MenuItemsView(viewsets.ModelViewSet):
@@ -136,7 +136,7 @@ class CartView(viewsets.ModelViewSet):
 
 class OrdersView(generics.ListCreateAPIView):
     serializer_class = OrderSerializer
-    permission_classes = [OrderPermission]
+    permission_classes = [OrdersPermission]
 
     def get_queryset(self):
 
@@ -168,3 +168,18 @@ class OrdersView(generics.ListCreateAPIView):
         current_cart_items.delete()
         
         return JsonResponse(model_to_dict(new_order), status=status.HTTP_201_CREATED)
+
+
+class OrderView(generics.RetrieveUpdateDestroyAPIView):
+    queryset = Order.objects.all()
+    serializer_class = OrderSerializer
+    permission_classes = [OrderPermission]
+   
+    # def get_queryset(self):
+    #     # Retrieve the 'order_id' parameter from the URL
+    #     order_id = self.kwargs['order_id']
+
+    #     # Use a Django filter to obtain the queryset of OrderItem instances
+    #     queryset = OrderItem.objects.filter(order_id=order_id)
+
+    #     return queryset

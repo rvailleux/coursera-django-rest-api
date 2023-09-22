@@ -1,6 +1,6 @@
-from datetime import date
-import time
+from datetime import datetime, timedelta
 from django.contrib.auth.models import User, Group
+from django.forms import model_to_dict
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
@@ -108,7 +108,7 @@ class test_OrderManagement(APITestCase):
 
         self.orders = []
         tempOrder = Order(user=self.valid_user_customer_w_order,
-                          date=date.today(), 
+                          date=datetime.today(), 
                           delivery_crew = self.valid_user_dcms[0])
         
         tempOrder.save()
@@ -125,7 +125,7 @@ class test_OrderManagement(APITestCase):
 
 
         tempOrder = Order(user=self.valid_user_manager_w_order,
-                          date=date.today())
+                          date=datetime.today())
         
         tempOrder.save()
         
@@ -135,7 +135,7 @@ class test_OrderManagement(APITestCase):
 
         self.orders.append(tempOrder)
 
-    def test_order_list(self):
+    def test_orders_list(self):
         url = f"https://{self.domain}/api/orders"
 
         # not authenticated
@@ -214,6 +214,81 @@ class test_OrderManagement(APITestCase):
         response = self.client.post(url, data)
 
         assert response.status_code == status.HTTP_404_NOT_FOUND
-
         assert not Order.objects.filter(user=self.valid_user_customer_wo_cart_wo_order).exists() 
 
+    def test_order_retrieve(self): 
+        url = f"https://{self.domain}/api/orders/"
+
+        order_id = Order.objects.filter(user=self.valid_user_customer_w_order).first().id
+        
+        #Passing case - Should list every OrderItem for the orderid
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
+
+        response = self.client.get(url+ f"{order_id}")
+
+        assert response.status_code == status.HTTP_200_OK
+
+        #Checking returned values
+        #db_orderitems_ids = {orderitem.id for orderitem in OrderItem.objects.filter(order=order_id)}
+        #returned_orderitems_ids = {orderitem['id'] for orderitem in response.json()}
+        assert order_id == response.json()['id']
+
+        #Wrong user for te given order should return 403
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_wo_cart_wo_order_token.key)
+
+        response = self.client.get(url+ f"{order_id}")
+
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_order_update(self): 
+
+        return 
+        url = f"https://{self.domain}/api/orders/"
+
+        order = Order.objects.filter(user=self.valid_user_customer_w_order).first()
+
+        order_data = {
+            "status": True,  # Update the status
+            #"date": "2023-09-25",  # Update the date
+            #"user": self.valid_user_customer_w_order.id,  # User ID
+            #"delivery_crew": order.delivery_crew.id,  # Delivery crew ID
+        }
+
+        print(f"{order_data}")
+
+        #Passing case - Should list every OrderItem for the orderid
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
+
+        response = self.client.put(url+ f"{order.id}", data=order_data)
+
+        assert response.status_code == status.HTTP_200_OK
+
+    def test_order_update(self):
+        order = Order.objects.filter(user=self.valid_user_customer_w_order).first()
+
+        # Create minimal data for the update
+        order_data = {
+            "user": order.user.id,
+            "status": True,  # Update the status (required field)
+            "date": "2023-09-25"
+        }
+
+        # Define the URL for the specific order
+        url = f"https://{self.domain}/api/orders/{order.id}"
+
+        # Logging for debugging
+        print(f"PUT request URL: {url}")
+        print(f"PUT request data: {order_data}")
+
+        # Logout and set credentials
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.put(url, data=order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_200_OK
