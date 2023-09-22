@@ -35,14 +35,13 @@ class test_OrderManagement(APITestCase):
         self.valid_user_manager_w_order_token = Token.objects.get_or_create(user=self.valid_user_manager_w_order)[0]
         self.valid_user_manager_w_order_token.save()
 
-        self.valid_user_manager_w_cart_wo_order =  User.objects.create_user(
-            email='managerCartNoOrder@test.com', 
-            username='mrManagerCartNoOrderCustomer', 
+        self.valid_user_customer_w_cart_wo_order =  User.objects.create_user(
+            email='customerCartNoOrder@test.com', 
+            username='CartNoOrderCustomer', 
             password=self.validUserPassword)
-        self.valid_user_manager_w_cart_wo_order.groups.add(self.manager_group)
-        self.valid_user_manager_w_cart_wo_order.save()
-        self.valid_user_manager_w_cart_wo_order_token = Token.objects.get_or_create(user=self.valid_user_manager_w_cart_wo_order)[0]
-        self.valid_user_manager_w_cart_wo_order_token.save()
+        self.valid_user_customer_w_cart_wo_order.save()
+        self.valid_user_customer_w_cart_wo_order_token = Token.objects.get_or_create(user=self.valid_user_customer_w_cart_wo_order)[0]
+        self.valid_user_customer_w_cart_wo_order_token.save()
 
         self.valid_user_dcms = []
         valid_user_temp = User.objects.create_user(
@@ -63,13 +62,14 @@ class test_OrderManagement(APITestCase):
         self.valid_user_customer_w_order_token = Token.objects.get_or_create(user=self.valid_user_customer_w_order)[0]
         self.valid_user_customer_w_order_token.save()
 
-        self.valid_user_customer_wo_order =  User.objects.create_user(
-            email='nocart_customer@test.com', 
-            username='mrNoCartCustomer', 
+        self.valid_user_customer_wo_cart_wo_order =  User.objects.create_user(
+            email='nocart_noorder_customer@test.com', 
+            username='mrNoCartNoOrderCustomer', 
             password=self.validUserPassword)
-        self.valid_user_customer_wo_order.save()
-        self.valid_user_customer_wo_order_token = Token.objects.get_or_create(user=self.valid_user_customer_wo_order)[0]
-        self.valid_user_customer_wo_order_token.save()
+        self.valid_user_customer_wo_cart_wo_order.save()
+        self.valid_user_customer_wo_cart_wo_order_token = Token.objects.get_or_create(user=self.valid_user_customer_wo_cart_wo_order)[0]
+        self.valid_user_customer_wo_cart_wo_order_token.save()
+
         self.menuitems = []
 
         self.menuitems.append(MenuItem.objects.create(
@@ -92,13 +92,13 @@ class test_OrderManagement(APITestCase):
         
 
         self.carts = []
-        tempCart = Cart(user=self.valid_user_manager_w_cart_wo_order, 
+        tempCart = Cart(user=self.valid_user_customer_w_cart_wo_order, 
                         menuitem=self.menuitems[0],
                         quantity=3)
         tempCart.save()
         self.carts.append(tempCart)
         
-        tempCart = Cart(user=self.valid_user_manager_w_cart_wo_order, 
+        tempCart = Cart(user=self.valid_user_customer_w_cart_wo_order, 
                         menuitem=self.menuitems[1],
                         quantity=2)
         tempCart.save()
@@ -184,14 +184,36 @@ class test_OrderManagement(APITestCase):
         }
 
         self.client.logout()
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_manager_w_cart_wo_order_token.key)
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_cart_wo_order_token.key)
 
-        assert Cart.objects.filter(user=self.valid_user_manager_w_cart_wo_order).exists()
-        assert not Order.objects.filter(user=self.valid_user_manager_w_cart_wo_order).exists()        
+        #Order Created - Cart items removed
+        assert Cart.objects.filter(user=self.valid_user_customer_w_cart_wo_order).exists()
+        assert not Order.objects.filter(user=self.valid_user_customer_w_cart_wo_order).exists()   
 
-        response = self.client.post(url)
+        cart_menuitem_ids = {cart_item.menuitem_id for cart_item in Cart.objects.filter(user=self.valid_user_customer_w_cart_wo_order)}
 
-        assert not Cart.objects.filter(user=self.valid_user_manager_w_cart_wo_order).exists()
-        assert Order.objects.filter(user=self.valid_user_manager_w_cart_wo_order).exists()        
+        response = self.client.post(url, data)
 
+        assert not Cart.objects.filter(user=self.valid_user_customer_w_cart_wo_order).exists()
+        assert Order.objects.filter(user=self.valid_user_customer_w_cart_wo_order).exists() 
+
+        # Order items correspond to former cart items in db
+        new_order_id = Order.objects.get(user=self.valid_user_customer_w_cart_wo_order).id
+        new_order_menuitems_ids = {orderitem.menuitem_id for orderitem in OrderItem.objects.filter(order_id=new_order_id)}
+                                   
+        assert new_order_menuitems_ids == cart_menuitem_ids
+
+
+        #No Cart items return 404 and no order created
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_wo_cart_wo_order_token.key)
+        
+        assert not Cart.objects.filter(user=self.valid_user_customer_wo_cart_wo_order).exists()
+        assert not Order.objects.filter(user=self.valid_user_customer_wo_cart_wo_order).exists() 
+
+        response = self.client.post(url, data)
+
+        assert response.status_code == status.HTTP_404_NOT_FOUND
+
+        assert not Order.objects.filter(user=self.valid_user_customer_wo_cart_wo_order).exists() 
 

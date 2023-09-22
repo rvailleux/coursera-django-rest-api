@@ -58,5 +58,7 @@ class OrderPermission(permissions.BasePermission):
         else:
             if request.method == "GET":
                 return True
+            if request.method == "POST":
+                return True
             else:
                 return False
