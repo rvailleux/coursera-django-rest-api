@@ -7,24 +7,32 @@ from django.contrib.auth.models import User, Group
 from rest_framework import viewsets, status, generics
 from rest_framework.response import Response
 from rest_framework import exceptions
+from rest_framework.pagination import PageNumberPagination
+from rest_framework.filters import OrderingFilter
 
-from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerPermission, OrderPermission, OrdersPermission
-from LittleLemonAPI.serializers import CartSerializer, MenuItemSerializer, OrderItemSerializer, OrderSerializer, UserSerializer
+from LittleLemonAPI.permissions import IsCustomerPermission, IsManagerOrReadOnlyPermission, IsManagerOrAdminPermission, OrderPermission, OrdersPermission
+from LittleLemonAPI.serializers import CartSerializer, CategorySerializer, MenuItemSerializer, OrderItemSerializer, OrderSerializer, UserSerializer
 from LittleLemonAPI import models
 
-from .models import Cart, MenuItem, Order, OrderItem
+from .models import Cart, Category, MenuItem, Order, OrderItem
 
 
 class MenuItemsView(viewsets.ModelViewSet):
     queryset = MenuItem.objects.all()
     serializer_class = MenuItemSerializer
     permission_classes = [IsManagerOrReadOnlyPermission]
+    filter_backends = [OrderingFilter] 
+    ordering_fields = ['price']  # Specify the fields by which you can order
+
+    pagination_class = PageNumberPagination
+    pagination_class.page_size = 4
+
 
 
 class UsersByGroupView(viewsets.ModelViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsManagerPermission]
+    permission_classes = [IsManagerOrAdminPermission]
 
     def get_queryset(self):
         """
@@ -174,12 +182,20 @@ class OrderView(generics.RetrieveUpdateDestroyAPIView):
     queryset = Order.objects.all()
     serializer_class = OrderSerializer
     permission_classes = [OrderPermission]
-   
-    # def get_queryset(self):
-    #     # Retrieve the 'order_id' parameter from the URL
-    #     order_id = self.kwargs['order_id']
 
-    #     # Use a Django filter to obtain the queryset of OrderItem instances
-    #     queryset = OrderItem.objects.filter(order_id=order_id)
 
-    #     return queryset
+class CategoriesView(generics.ListCreateAPIView):
+     queryset = Category.objects.all()
+     serializer_class = CategorySerializer
+
+class CategoryView(generics.RetrieveAPIView):
+     queryset = Category.objects.all()
+     serializer_class = CategorySerializer
+
+class MenuItemsInCategoryView(generics.ListAPIView):
+    
+    serializer_class = MenuItemSerializer
+
+    def get_queryset(self):
+        category_id = self.kwargs['pk']
+        return get_list_or_404(MenuItem.objects.filter(category_id=category_id))

@@ -20,19 +20,17 @@ class IsManagerOrReadOnlyPermission(permissions.BasePermission):
             return False
         
         # Write permissions are only allowed to the user within Manager group.
-        return request.user.groups.filter(name="manager").exists()
+        return request.user.groups.filter(name="manager").exists() or request.user.is_superuser
     
 
-class IsManagerPermission(permissions.BasePermission):
+class IsManagerOrAdminPermission(permissions.BasePermission):
     """
     Custom permission to only allow managers  to edit it.
     """
 
     def has_permission(self, request, view):
-        
-        print(f"{request.user.username} - {request.user.groups}")
         # Write permissions are only allowed to the user within Manager group.
-        return request.user.groups.filter(name="manager").exists()
+        return request.user.groups.filter(name="manager").exists() or request.user.is_superuser
     
 class IsCustomerPermission(permissions.BasePermission):
     """
@@ -77,12 +75,20 @@ class OrderPermission(permissions.BasePermission):
         if not request.user.is_authenticated:
             return False
         
-        if request.method == "GET" or request.method == "PUT" or request.method == "PATCH":
-  
-            if not any({group.name in {'delivery-crew', 'manager'} for group in request.user.groups.all()}):
-                order = get_object_or_404(Order, id=view.kwargs.get('pk'))
-                return request.user.id == order.user.id
-            else:
-                return False
+        else:
+            current_user_groups_names = {group.name for group in request.user.groups.all()}
             
+            if request.method == "GET" or request.method == "PUT" or request.method == "PATCH":
+    
+                if not {'delivery-crew', 'manager'}.intersection(current_user_groups_names):
+                    order = get_object_or_404(Order, id=view.kwargs.get('pk'))
+                    return request.user.id == order.user.id    
+                
+            if request.method == 'PATCH' and {'delivery-crew', 'manager'}.intersection(current_user_groups_names):
+                
+                return True
+            
+            if request.method == 'DELETE' and 'manager' in current_user_groups_names:
+                return True
+
         return False

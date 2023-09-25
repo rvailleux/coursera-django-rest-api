@@ -13,6 +13,13 @@ class MenuItemSerializer(serializers.HyperlinkedModelSerializer):
         fields = ['url','title', 'price', 'featured', 'category', 'category_id']
         read_only_fields = ['category']
 
+
+class CategorySerializer(serializers.ModelSerializer):
+
+    class Meta:
+        model = Category
+        fields = ['slug', 'title']
+
 class GroupSerializer(serializers.ModelSerializer, ):
     class Meta:
         name = Group.objects.all()
@@ -56,18 +63,18 @@ class OrderItemSerializer(serializers.ModelSerializer):
         read_only_fields = ['id', 'user', 'unit_price', 'price']
         optional_fields = ['unit_price', 'price']
 
-class ShortOrderItemSerializer(serializers.HyperlinkedModelSerializer):
+class ShortOrderItemSerializer(serializers.ModelSerializer):
 
     title = serializers.CharField(source='get_title')
     
     class Meta:
         model = OrderItem
-        fields=['url', 'title', 'quantity','price']
+        fields=['id', 'title', 'quantity','price']
 
 class OrderSerializer(serializers.ModelSerializer):
     user = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    delivery_crew = serializers.PrimaryKeyRelatedField(queryset=User.objects.all())
-    orderitems = ShortOrderItemSerializer(many=True, source='orderitem_set')
+    delivery_crew = serializers.PrimaryKeyRelatedField(queryset=User.objects.all(), required=False)
+    orderitems = ShortOrderItemSerializer(many=True, source='orderitem_set', required=False)
 
     class Meta:
         model = Order
@@ -75,3 +82,4 @@ class OrderSerializer(serializers.ModelSerializer):
                   'status', 'orderitems', 'total', 'date']
         read_only_fields = ['id', 'user', 'total', 'orderitems']
         optional_fields = ['delivery_crew', 'total', 'status', 'orderitems']
+

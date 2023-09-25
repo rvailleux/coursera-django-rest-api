@@ -1,6 +1,8 @@
 from datetime import datetime, timedelta
+from decimal import Decimal
 from django.contrib.auth.models import User, Group
 from django.forms import model_to_dict
+import pytest
 from rest_framework import status
 from rest_framework.authtoken.models import Token
 from rest_framework.test import APIClient, APITestCase
@@ -175,6 +177,15 @@ class test_OrderManagement(APITestCase):
         db_orders_ids = {order.id for order in Order.objects.filter(delivery_crew_id=self.valid_user_dcms[0].id)}
         response_order_ids = {order['id'] for order in response.json()}
         assert db_orders_ids == response_order_ids
+
+        #check that for each order, order items are also returned
+        for order in response.json():
+            for orderitem in order['orderitems']:
+                    orderitem_from_db = OrderItem.objects.get(id=orderitem['id'])
+                    assert orderitem['id'] == orderitem_from_db.id
+                    assert orderitem['title'] == orderitem_from_db.menuitem.title
+                    assert orderitem['quantity'] == orderitem_from_db.quantity
+                    assert Decimal(orderitem['price']) == orderitem_from_db.price
         
     def test_order_add(self): 
         url = f"https://{self.domain}/api/orders"
@@ -230,8 +241,6 @@ class test_OrderManagement(APITestCase):
         assert response.status_code == status.HTTP_200_OK
 
         #Checking returned values
-        #db_orderitems_ids = {orderitem.id for orderitem in OrderItem.objects.filter(order=order_id)}
-        #returned_orderitems_ids = {orderitem['id'] for orderitem in response.json()}
         assert order_id == response.json()['id']
 
         #Wrong user for te given order should return 403
@@ -242,48 +251,68 @@ class test_OrderManagement(APITestCase):
 
         assert response.status_code == status.HTTP_403_FORBIDDEN
 
-    def test_order_update(self): 
-
-        return 
-        url = f"https://{self.domain}/api/orders/"
-
-        order = Order.objects.filter(user=self.valid_user_customer_w_order).first()
-
-        order_data = {
-            "status": True,  # Update the status
-            #"date": "2023-09-25",  # Update the date
-            #"user": self.valid_user_customer_w_order.id,  # User ID
-            #"delivery_crew": order.delivery_crew.id,  # Delivery crew ID
-        }
-
-        print(f"{order_data}")
-
-        #Passing case - Should list every OrderItem for the orderid
-        self.client.logout()
-        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
-
-        response = self.client.put(url+ f"{order.id}", data=order_data)
-
-        assert response.status_code == status.HTTP_200_OK
 
     def test_order_update(self):
         order = Order.objects.filter(user=self.valid_user_customer_w_order).first()
 
         # Create minimal data for the update
         order_data = {
+            "id": order.id,
             "user": order.user.id,
             "status": True,  # Update the status (required field)
-            "date": "2023-09-25"
+            "date": "2023-09-25", 
+            "delivery_crew": order.delivery_crew.id
         }
 
         # Define the URL for the specific order
         url = f"https://{self.domain}/api/orders/{order.id}"
 
-        # Logging for debugging
-        print(f"PUT request URL: {url}")
-        print(f"PUT request data: {order_data}")
+        ## MANAGER CAN T UPDATE
+        # Logout and set credentials to a manager
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_manager_w_order_token.key)
 
-        # Logout and set credentials
+        # Make the PUT request with minimal order_data
+        response = self.client.put(url, data=order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Make the PUT request with minimal order_data
+        response = self.client.patch(url, data=order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_200_OK
+
+        dcm_update_order_data = {
+            "id": order.id,
+            "status": True,  # Only authorized field to be modified by DC member
+        }
+
+        ## DC Member CAN UPDATE ONLY ONE FIELD
+        # Logout and set credentials to a manager
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_dcm_w_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.put(url, data=order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+        # Make the PUT request with minimal order_data
+        response = self.client.patch(url, data=order_data, format='json')
+
+        assert response.status_code == status.HTTP_200_OK
+
+        # Make the PUT request with minimal order_data
+        response = self.client.patch(url, data=dcm_update_order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_200_OK
+
+
+        # Logout and set credentials to customer that owns the order
         self.client.logout()
         self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
 
@@ -292,3 +321,84 @@ class test_OrderManagement(APITestCase):
 
         # Check the response status code
         assert response.status_code == status.HTTP_200_OK
+
+
+         # Create minimal data for the update
+        previous_value = order.status
+
+        partial_order_data = {
+            "id": order.id,
+            "status": not order.status,  # Update the status (required field)
+        }
+
+        # Make the PUT request with some order_data
+        response = self.client.patch(url, data=partial_order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_200_OK
+
+        # Check the value actually changed
+        assert not response.json()["status"] == previous_value
+
+
+         # Logout and set credentials to customer that doesnt own the order
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_wo_cart_wo_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.put(url, data=order_data, format='json')
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+    def test_order_delete(self):
+         
+        order = Order.objects.filter(user=self.valid_user_customer_w_order).first()
+        orderitems_ids = {orderitem.id for orderitem in OrderItem.objects.filter(order_id=order.id).all()}
+
+         # Define the URL for the specific order
+        url = f"https://{self.domain}/api/orders/{order.id}"
+
+
+        ## Customer CANT DELETE, even if owner
+        # Logout and set credentials to a customer
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_customer_w_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.delete(url)
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+        ## DCMember CANT DELETE
+        # Logout and set credentials to a dcm member
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_dcm_w_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.delete(url)
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_403_FORBIDDEN
+
+
+
+        ## MANAGER CAN DELETE
+        # Logout and set credentials to a manager
+        self.client.logout()
+        self.client.credentials(HTTP_AUTHORIZATION='Token ' + self.valid_user_manager_w_order_token.key)
+
+        # Make the PUT request with minimal order_data
+        response = self.client.delete(url)
+
+        # Check the response status code
+        assert response.status_code == status.HTTP_204_NO_CONTENT
+
+        with pytest.raises(Order.DoesNotExist):
+            order.refresh_from_db()
+
+        for orderitem_id in orderitems_ids:
+            with pytest.raises(OrderItem.DoesNotExist):
+                OrderItem.objects.get(id=orderitem_id)

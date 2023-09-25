@@ -67,7 +67,7 @@ class test_MenuItems(APITestCase):
         # GET Test valid when not identified
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), len(self.menuitem))
+        self.assertEqual(response.json()["count"], len(self.menuitem))
 
         # POST NOK
         response = self.client.post(url, data=data, format='json')
@@ -78,7 +78,7 @@ class test_MenuItems(APITestCase):
         self.client.force_login(user=self.validUserDCM)
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), len(self.menuitem))
+        self.assertEqual(response.json()["count"], len(self.menuitem))
         self.client.logout()
 
         # POST NOK
@@ -93,7 +93,7 @@ class test_MenuItems(APITestCase):
         self.client.force_login(user=self.validUserManager)
         response = self.client.get(url)
         self.assertEqual(response.status_code,  status.HTTP_200_OK)
-        self.assertEqual(len(response.json()), len(self.menuitem))
+        self.assertEqual(response.json()["count"], len(self.menuitem))
         self.client.logout()
 
          # POST OK
