@@ -8,17 +8,17 @@ from .serializers import BookingSerializer, MenuItemSerializer, UserSerializer
 class MenuItemsView(ListCreateAPIView):
     queryset = Menu.objects.all()
     serializer_class = MenuItemSerializer
-    # permission_classes = [IsAdminUser]
+    permission_classes = [permissions.IsAuthenticated]
 
 class SingleMenuItemView(RetrieveUpdateAPIView, DestroyAPIView):
     queryset = Menu.objects.all()
     serializer_class = MenuItemSerializer
-    # permission_classes = [IsAdminUser]
 
 
 class BookingViewSet(viewsets.ModelViewSet):
     queryset = Booking.objects.all()
     serializer_class = BookingSerializer
+    permission_classes = [permissions.IsAuthenticated]
     
 class UserViewSet(viewsets.ModelViewSet):
    queryset = User.objects.all()
